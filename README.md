@@ -19,6 +19,8 @@ El contenido está organizado de la siguiente manera:
 * 📁 **[PREGUNTAS FINAL/](file:///c:/Users/jorda/Documentos/PROYECTOS/FIUBA/Distribuidos-1C2026/PREGUNTAS%20FINAL)**: Preguntas y respuestas rápidas tipo tarjetas de memoria (flashcards) en formato Markdown, ideales para repasar conceptos clave clase a clase.
 * 📁 **[INTEGRADORES/](file:///c:/Users/jorda/Documentos/PROYECTOS/FIUBA/Distribuidos-1C2026/INTEGRADORES)**: Enunciados de exámenes integradores de fechas anteriores (PDFs e imágenes) junto con un compilado de exámenes resueltos (`RESUELTOS.pdf`).
 * 📄 **[RESUMEN INTEGRADOR.pdf](file:///c:/Users/jorda/Documentos/PROYECTOS/FIUBA/Distribuidos-1C2026/RESUMEN%20INTEGRADOR.pdf)**: Resumen y compilación de temas para el examen integrador.
+* 📁 **[TP/](file:///c:/Users/jorda/Documentos/PROYECTOS/FIUBA/Distribuidos-1C2026/TP)**: Código, scripts, configuración e informe del Trabajo Práctico 1.
+
 
 ---
 

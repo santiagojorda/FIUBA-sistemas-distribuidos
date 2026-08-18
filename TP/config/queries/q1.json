@@ -1,0 +1,28 @@
+{
+  "gateway_queue": "raw_data",
+  "workers": [
+    {
+      "type": "proyeccion",
+      "prefix": "q1_projection",
+      "replicas": "$CANT_Q1_PROJECTION",
+      "input_queue": "q1_pre_projection",
+      "output_queue": "q1_usd_to_minor_50",
+      "extra_env": {
+        "CAMPOS": "From Bank,Account,To Bank,Account.1,Amount Paid",
+        "INT_FIELDS": "From Bank"
+      }
+    },
+    {
+      "type": "filtro",
+      "prefix": "q1_minor_than_50",
+      "replicas": "$CANT_Q1_FILTER",
+      "input_queue": "q1_usd_to_minor_50",
+      "output_queue": "q1_results",
+      "extra_env": {
+        "CAMPO_FILTRO": "Amount Paid",
+        "VALOR_FILTRO": "50",
+        "OPERADOR_FILTRO": "menor"
+      }
+    }
+  ]
+}

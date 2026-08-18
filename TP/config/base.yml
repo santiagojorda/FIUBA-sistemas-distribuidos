@@ -1,0 +1,69 @@
+services:
+  gateway:
+    build:
+      context: ./src
+      dockerfile: gateway/Dockerfile
+    container_name: gateway_01
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+      - "5678:5678"
+    volumes:
+      - ./logs:/app/logs
+    environment:
+      PYTHONUNBUFFERED: '1'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/gateway.txt
+      SERVER_HOST: gateway
+      SERVER_PORT: '5678'
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      OUTPUTS_QUEUE: ""
+      INPUTS_QUEUE: ""
+      HTTP_HOST: 0.0.0.0
+      HTTP_PORT: '8080'
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    environment:
+      RABBITMQ_LOG_LEVELS: error
+      RABBITMQ_DEFAULT_USER: distributed
+      RABBITMQ_DEFAULT_PASS: distributed
+      RABBITMQ_DEFAULT_VHOST: /
+    healthcheck:
+      interval: 5s
+      retries: 10
+      start_period: 50s
+      test: rabbitmq-diagnostics check_port_connectivity
+      timeout: 3s
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  client:
+    build:
+      context: ./src
+      dockerfile: client/Dockerfile
+    profiles:
+      - clients
+    depends_on:
+      gateway:
+        condition: service_started
+    volumes:
+      - ./datasets:/app/datasets
+      - ./output:/app/output
+    environment:
+      PYTHONUNBUFFERED: '1'
+      SERVER_HOST: gateway
+      SERVER_PORT: '5678'
+      TRANSACTIONS_FILE: /app/datasets/transacciones_sample.csv
+      ACCOUNTS_FILE: /app/datasets/accounts_sample.csv
+      OUTPUT_DIR: /app/output
+      OUTPUT_APPEND_HOSTNAME: 'true'
+      BATCH_SIZE: '2500'

@@ -1,0 +1,8 @@
+pytest
+pika
+numpy
+pandas
+polars
+requests
+pyyaml
+docker

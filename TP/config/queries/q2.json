@@ -1,0 +1,43 @@
+{
+  "gateway_queue": "raw_data",
+  "bank_queue": {
+    "queue_shard_prefix": "q2_raw_banks",
+    "total_workers": "$CANT_Q2_BANK_PROJECTION",
+    "hash_field": "Bank ID"
+  },
+  "workers": [
+    {
+      "type": "proyeccion",
+      "prefix": "q2_bank_projection",
+      "replicas": "$CANT_Q2_BANK_PROJECTION",
+      "input_queue": "q2_raw_banks_{id}",
+      "output_queue": [{"queue_shard_prefix": "q2_shard_banks", "total_workers": "$CANT_Q2_AGREGADOR", "hash_field": "Bank ID"}],
+      "extra_env": {
+        "CAMPOS": "Bank ID,Bank Name,Account Number",
+        "INT_FIELDS": ""
+      }
+    },
+    {
+      "type": "proyeccion",
+      "prefix": "q2_projection",
+      "replicas": "$CANT_Q2_PROJECTION",
+      "input_queue": "q2_pre_projection",
+      "output_queue": [{"queue_shard_prefix": "q2_shard_transactions", "total_workers": "$CANT_Q2_AGREGADOR", "hash_field": "From Bank"}],
+      "extra_env": {
+        "CAMPOS": "From Bank,Account,Payment Currency,Receiving Currency,Amount Received,Amount Paid",
+        "INT_FIELDS": "From Bank"
+      }
+    },
+    {
+      "type": "bank_shard",
+      "prefix": "q2_agregador_shard",
+      "replicas": "$CANT_Q2_AGREGADOR",
+      "input_queue": ["q2_shard_transactions_{id}", "q2_shard_banks_{id}"],
+      "output_queue": "q2_results",
+      "extra_env": {
+        "TOTAL_TX_UPSTREAM": "$CANT_Q2_PROJECTION",
+        "TOTAL_BANK_UPSTREAM": "$CANT_Q2_BANK_PROJECTION"
+      }
+    }
+  ]
+}

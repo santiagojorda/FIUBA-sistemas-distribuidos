@@ -1,0 +1,56 @@
+{
+  "workers": [
+    {
+      "type": "proyeccion",
+      "prefix": "q5_projection",
+      "replicas": "$CANT_Q5_PROJECTION",
+      "input_queue": "q5_raw_data",
+      "output_queue": "q5_projected_data",
+      "extra_env": {
+        "CAMPOS": "Timestamp,Payment Currency,Payment Format,Amount Paid"
+      }
+    },
+    {
+      "type": "filtro",
+      "prefix": "q5_filter_period",
+      "replicas": "$CANT_Q5_FILTER_PERIOD",
+      "input_queue": "q5_projected_data",
+      "output_queue": "q5_period_to_format",
+      "extra_env": {
+        "CAMPO_FILTRO": "Timestamp",
+        "VALOR_FILTRO": "2022/09/01, 2022/09/05",
+        "OPERADOR_FILTRO": "entre"
+      }
+    },
+    {
+      "type": "filtro",
+      "prefix": "q5_filter_format",
+      "replicas": "$CANT_Q5_FILTER_FORMAT",
+      "input_queue": "q5_period_to_format",
+      "output_queue": "q5_format_to_convert",
+      "extra_env": {
+        "CAMPO_FILTRO": "Payment Format",
+        "VALOR_FILTRO": "Wire, ACH",
+        "OPERADOR_FILTRO": "en"
+      }
+    },
+    {
+      "type": "convertidor",
+      "prefix": "q5_converter",
+      "replicas": "$CANT_Q5_CONVERTER",
+      "input_queue": "q5_format_to_convert",
+      "output_queue": "q5_filtered",
+      "extra_env": {
+        "FECHA_INICIO": "2022-09-01",
+        "FECHA_FIN": "2022-09-05"
+      }
+    },
+    {
+      "type": "contador",
+      "prefix": "q5_counter",
+      "replicas": "$CANT_Q5_COUNTER",
+      "input_queue": "q5_filtered",
+      "output_queue": "q5_results"
+    }
+  ]
+}

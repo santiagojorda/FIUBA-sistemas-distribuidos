@@ -1,0 +1,51 @@
+{
+  "gateway_queue": "raw_data",
+  "workers": [
+    {
+      "type": "filtro",
+      "prefix": "q3_filter_fechas",
+      "replicas": "$CANT_Q3_FILTER_FECHAS",
+      "input_queue": "q3_usd_filtered",
+      "output_queue": [
+        {
+          "type": "conditional",
+          "condition_field": "Timestamp",
+          "cases": [
+            {
+              "operator": "entre",
+              "value": "2022/09/01,2022/09/05",
+              "routing": {
+                "queue_shard_prefix": "q3_temprano",
+                "total_workers": "$CANT_Q3_FORMAT_SHARD",
+                "hash_field": "Payment Format",
+                "include_client_id": true
+              }
+            },
+            {
+              "operator": "entre",
+              "value": "2022/09/06,2022/09/14 23:59:59",
+              "routing": {
+                "queue_shard_prefix": "q3_tardio",
+                "total_workers": "$CANT_Q3_FORMAT_SHARD",
+                "hash_field": "Payment Format",
+                "include_client_id": true
+              }
+            }
+          ]
+        }
+      ],
+      "extra_env": {
+        "CAMPO_FILTRO": "Timestamp",
+        "VALOR_FILTRO": "2022/09/01,2022/09/14 23:59:59",
+        "OPERADOR_FILTRO": "entre"
+      }
+    },
+    {
+      "type": "format_shard",
+      "prefix": "q3_format_shard",
+      "replicas": "$CANT_Q3_FORMAT_SHARD",
+      "input_queue": ["q3_temprano_{id}", "q3_tardio_{id}"],
+      "output_queue": "q3_results"
+    }
+  ]
+}

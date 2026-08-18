@@ -1,0 +1,27 @@
+{
+  "proyeccion": {
+    "dockerfile": "workers/proyeccion/Dockerfile"
+  },
+  "filtro": {
+    "dockerfile": "workers/filtro/Dockerfile"
+  },
+  "convertidor": {
+    "dockerfile": "workers/convertidor/Dockerfile"
+  },
+  "contador": {
+    "dockerfile": "workers/contador/Dockerfile"
+  },
+  "bank_shard": {
+    "dockerfile": "workers/bank_shard/Dockerfile"
+  },
+  "format_shard": {
+    "dockerfile": "workers/format_shard/Dockerfile",
+    "default_env": {}
+  },
+  "contador_distinto": {
+    "dockerfile": "workers/contador_distinto/Dockerfile"
+  },
+  "joiner_q4": {
+    "dockerfile": "workers/joiner_q4/Dockerfile"
+  }
+}

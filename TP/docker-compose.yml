@@ -1,0 +1,2139 @@
+services:
+  gateway:
+    build:
+      context: ./src
+      dockerfile: gateway/Dockerfile
+    container_name: gateway_01
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    ports:
+    - 8080:8080
+    - 5678:5678
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/gateway:/app/volumen
+    environment:
+      PYTHONUNBUFFERED: '1'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/gateway.txt
+      SERVER_HOST: gateway
+      SERVER_PORT: '5678'
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      OUTPUTS_QUEUE: raw_data, q5_raw_data
+      INPUTS_QUEUE: q1_results, q2_results, q3_results, q4_results, q5_results
+      HTTP_HOST: 0.0.0.0
+      HTTP_PORT: '8080'
+      BANK_QUEUE: '{"queue_shard_prefix": "q2_raw_banks", "total_workers": 3, "hash_field": "Bank ID"}'
+      CRASH_GATEWAY_UPSTREAM_BEFORE_ACK: ${CRASH_GATEWAY_UPSTREAM_BEFORE_ACK:-false}
+      CRASH_GATEWAY_DOWNSTREAM_BEFORE_SEND: ${CRASH_GATEWAY_DOWNSTREAM_BEFORE_SEND:-false}
+      CRASH_GATEWAY_DOWNSTREAM_BEFORE_ACK: ${CRASH_GATEWAY_DOWNSTREAM_BEFORE_ACK:-false}
+      CRASH_GATEWAY_BEFORE_FINALIZE: ${CRASH_GATEWAY_BEFORE_FINALIZE:-false}
+      CRASH_GATEWAY_BEFORE_PERSIST_CONNECTED: ${CRASH_GATEWAY_BEFORE_PERSIST_CONNECTED:-false}
+      CRASH_GATEWAY_AFTER_PERSIST_CONNECTED: ${CRASH_GATEWAY_AFTER_PERSIST_CONNECTED:-false}
+      CRASH_GATEWAY_BEFORE_PERSIST_DATOS_ENVIADOS: ${CRASH_GATEWAY_BEFORE_PERSIST_DATOS_ENVIADOS:-false}
+      CRASH_GATEWAY_AFTER_PERSIST_DATOS_ENVIADOS: ${CRASH_GATEWAY_AFTER_PERSIST_DATOS_ENVIADOS:-false}
+      CRASH_GATEWAY_BEFORE_PERSIST_QUERY: ${CRASH_GATEWAY_BEFORE_PERSIST_QUERY:-false}
+      CRASH_GATEWAY_AFTER_PERSIST_QUERY: ${CRASH_GATEWAY_AFTER_PERSIST_QUERY:-false}
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    environment:
+      RABBITMQ_LOG_LEVELS: error
+      RABBITMQ_DEFAULT_USER: distributed
+      RABBITMQ_DEFAULT_PASS: distributed
+      RABBITMQ_DEFAULT_VHOST: /
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: -rabbit vm_memory_high_watermark 0.4 +MBas aobf +MBacul 10
+    healthcheck:
+      interval: 5s
+      retries: 10
+      start_period: 50s
+      test: rabbitmq-diagnostics check_port_connectivity
+      timeout: 3s
+    ports:
+    - 5672:5672
+    - 15672:15672
+  client:
+    build:
+      context: ./src
+      dockerfile: client/Dockerfile
+    profiles:
+    - clients
+    depends_on:
+      gateway:
+        condition: service_started
+    volumes:
+    - ./datasets:/app/datasets
+    - ./output:/app/output
+    environment:
+      PYTHONUNBUFFERED: '1'
+      SERVER_HOST: gateway
+      SERVER_PORT: '5678'
+      TRANSACTIONS_FILE: /app/datasets/transacciones_sample.csv
+      ACCOUNTS_FILE: /app/datasets/accounts_sample.csv
+      OUTPUT_DIR: /app/output
+      OUTPUT_APPEND_HOSTNAME: 'true'
+      BATCH_SIZE: '2500'
+  shared_filter_usd_01:
+    build:
+      context: ./src
+      dockerfile: workers/filtro/Dockerfile
+    container_name: shared_filter_usd_01
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: raw_data
+      OUTPUT_QUEUES: '["q1_pre_projection", "q2_pre_projection", "q3_usd_filtered", "q4_pre_projection"]'
+      NODE_PREFIX: shared_filter_usd
+      ID: '1'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/shared_filter_usd_01.txt
+      CAMPO_FILTRO: Payment Currency
+      VALOR_FILTRO: US Dollar
+      OPERADOR_FILTRO: igual
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  shared_filter_usd_02:
+    build:
+      context: ./src
+      dockerfile: workers/filtro/Dockerfile
+    container_name: shared_filter_usd_02
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: raw_data
+      OUTPUT_QUEUES: '["q1_pre_projection", "q2_pre_projection", "q3_usd_filtered", "q4_pre_projection"]'
+      NODE_PREFIX: shared_filter_usd
+      ID: '2'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/shared_filter_usd_02.txt
+      CAMPO_FILTRO: Payment Currency
+      VALOR_FILTRO: US Dollar
+      OPERADOR_FILTRO: igual
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  shared_filter_usd_03:
+    build:
+      context: ./src
+      dockerfile: workers/filtro/Dockerfile
+    container_name: shared_filter_usd_03
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: raw_data
+      OUTPUT_QUEUES: '["q1_pre_projection", "q2_pre_projection", "q3_usd_filtered", "q4_pre_projection"]'
+      NODE_PREFIX: shared_filter_usd
+      ID: '3'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/shared_filter_usd_03.txt
+      CAMPO_FILTRO: Payment Currency
+      VALOR_FILTRO: US Dollar
+      OPERADOR_FILTRO: igual
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q1_projection_01:
+    build:
+      context: ./src
+      dockerfile: workers/proyeccion/Dockerfile
+    container_name: q1_projection_01
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q1_pre_projection
+      OUTPUT_QUEUES: q1_usd_to_minor_50
+      NODE_PREFIX: q1_projection
+      ID: '1'
+      TOTAL_WORKERS: '2'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q1_projection_01.txt
+      CAMPOS: From Bank,Account,To Bank,Account.1,Amount Paid
+      INT_FIELDS: From Bank
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q1_projection_02:
+    build:
+      context: ./src
+      dockerfile: workers/proyeccion/Dockerfile
+    container_name: q1_projection_02
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q1_pre_projection
+      OUTPUT_QUEUES: q1_usd_to_minor_50
+      NODE_PREFIX: q1_projection
+      ID: '2'
+      TOTAL_WORKERS: '2'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q1_projection_02.txt
+      CAMPOS: From Bank,Account,To Bank,Account.1,Amount Paid
+      INT_FIELDS: From Bank
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q1_minor_than_50_01:
+    build:
+      context: ./src
+      dockerfile: workers/filtro/Dockerfile
+    container_name: q1_minor_than_50_01
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q1_usd_to_minor_50
+      OUTPUT_QUEUES: q1_results
+      NODE_PREFIX: q1_minor_than_50
+      ID: '1'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q1_minor_than_50_01.txt
+      CAMPO_FILTRO: Amount Paid
+      VALOR_FILTRO: '50'
+      OPERADOR_FILTRO: menor
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q1_minor_than_50_02:
+    build:
+      context: ./src
+      dockerfile: workers/filtro/Dockerfile
+    container_name: q1_minor_than_50_02
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q1_usd_to_minor_50
+      OUTPUT_QUEUES: q1_results
+      NODE_PREFIX: q1_minor_than_50
+      ID: '2'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q1_minor_than_50_02.txt
+      CAMPO_FILTRO: Amount Paid
+      VALOR_FILTRO: '50'
+      OPERADOR_FILTRO: menor
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q1_minor_than_50_03:
+    build:
+      context: ./src
+      dockerfile: workers/filtro/Dockerfile
+    container_name: q1_minor_than_50_03
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q1_usd_to_minor_50
+      OUTPUT_QUEUES: q1_results
+      NODE_PREFIX: q1_minor_than_50
+      ID: '3'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q1_minor_than_50_03.txt
+      CAMPO_FILTRO: Amount Paid
+      VALOR_FILTRO: '50'
+      OPERADOR_FILTRO: menor
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q2_bank_projection_01:
+    build:
+      context: ./src
+      dockerfile: workers/proyeccion/Dockerfile
+    container_name: q2_bank_projection_01
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q2_raw_banks_1
+      OUTPUT_QUEUES: '[{"queue_shard_prefix": "q2_shard_banks", "total_workers": 6, "hash_field": "Bank ID"}]'
+      NODE_PREFIX: q2_bank_projection
+      ID: '1'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q2_bank_projection_01.txt
+      CAMPOS: Bank ID,Bank Name,Account Number
+      INT_FIELDS: ''
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q2_bank_projection_02:
+    build:
+      context: ./src
+      dockerfile: workers/proyeccion/Dockerfile
+    container_name: q2_bank_projection_02
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q2_raw_banks_2
+      OUTPUT_QUEUES: '[{"queue_shard_prefix": "q2_shard_banks", "total_workers": 6, "hash_field": "Bank ID"}]'
+      NODE_PREFIX: q2_bank_projection
+      ID: '2'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q2_bank_projection_02.txt
+      CAMPOS: Bank ID,Bank Name,Account Number
+      INT_FIELDS: ''
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q2_bank_projection_03:
+    build:
+      context: ./src
+      dockerfile: workers/proyeccion/Dockerfile
+    container_name: q2_bank_projection_03
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q2_raw_banks_3
+      OUTPUT_QUEUES: '[{"queue_shard_prefix": "q2_shard_banks", "total_workers": 6, "hash_field": "Bank ID"}]'
+      NODE_PREFIX: q2_bank_projection
+      ID: '3'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q2_bank_projection_03.txt
+      CAMPOS: Bank ID,Bank Name,Account Number
+      INT_FIELDS: ''
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q2_projection_01:
+    build:
+      context: ./src
+      dockerfile: workers/proyeccion/Dockerfile
+    container_name: q2_projection_01
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q2_pre_projection
+      OUTPUT_QUEUES: '[{"queue_shard_prefix": "q2_shard_transactions", "total_workers": 6, "hash_field": "From Bank"}]'
+      NODE_PREFIX: q2_projection
+      ID: '1'
+      TOTAL_WORKERS: '6'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q2_projection_01.txt
+      CAMPOS: From Bank,Account,Payment Currency,Receiving Currency,Amount Received,Amount Paid
+      INT_FIELDS: From Bank
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q2_projection_02:
+    build:
+      context: ./src
+      dockerfile: workers/proyeccion/Dockerfile
+    container_name: q2_projection_02
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q2_pre_projection
+      OUTPUT_QUEUES: '[{"queue_shard_prefix": "q2_shard_transactions", "total_workers": 6, "hash_field": "From Bank"}]'
+      NODE_PREFIX: q2_projection
+      ID: '2'
+      TOTAL_WORKERS: '6'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q2_projection_02.txt
+      CAMPOS: From Bank,Account,Payment Currency,Receiving Currency,Amount Received,Amount Paid
+      INT_FIELDS: From Bank
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q2_projection_03:
+    build:
+      context: ./src
+      dockerfile: workers/proyeccion/Dockerfile
+    container_name: q2_projection_03
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q2_pre_projection
+      OUTPUT_QUEUES: '[{"queue_shard_prefix": "q2_shard_transactions", "total_workers": 6, "hash_field": "From Bank"}]'
+      NODE_PREFIX: q2_projection
+      ID: '3'
+      TOTAL_WORKERS: '6'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q2_projection_03.txt
+      CAMPOS: From Bank,Account,Payment Currency,Receiving Currency,Amount Received,Amount Paid
+      INT_FIELDS: From Bank
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q2_projection_04:
+    build:
+      context: ./src
+      dockerfile: workers/proyeccion/Dockerfile
+    container_name: q2_projection_04
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q2_pre_projection
+      OUTPUT_QUEUES: '[{"queue_shard_prefix": "q2_shard_transactions", "total_workers": 6, "hash_field": "From Bank"}]'
+      NODE_PREFIX: q2_projection
+      ID: '4'
+      TOTAL_WORKERS: '6'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q2_projection_04.txt
+      CAMPOS: From Bank,Account,Payment Currency,Receiving Currency,Amount Received,Amount Paid
+      INT_FIELDS: From Bank
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q2_projection_05:
+    build:
+      context: ./src
+      dockerfile: workers/proyeccion/Dockerfile
+    container_name: q2_projection_05
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q2_pre_projection
+      OUTPUT_QUEUES: '[{"queue_shard_prefix": "q2_shard_transactions", "total_workers": 6, "hash_field": "From Bank"}]'
+      NODE_PREFIX: q2_projection
+      ID: '5'
+      TOTAL_WORKERS: '6'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q2_projection_05.txt
+      CAMPOS: From Bank,Account,Payment Currency,Receiving Currency,Amount Received,Amount Paid
+      INT_FIELDS: From Bank
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q2_projection_06:
+    build:
+      context: ./src
+      dockerfile: workers/proyeccion/Dockerfile
+    container_name: q2_projection_06
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q2_pre_projection
+      OUTPUT_QUEUES: '[{"queue_shard_prefix": "q2_shard_transactions", "total_workers": 6, "hash_field": "From Bank"}]'
+      NODE_PREFIX: q2_projection
+      ID: '6'
+      TOTAL_WORKERS: '6'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q2_projection_06.txt
+      CAMPOS: From Bank,Account,Payment Currency,Receiving Currency,Amount Received,Amount Paid
+      INT_FIELDS: From Bank
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q2_agregador_shard_01:
+    build:
+      context: ./src
+      dockerfile: workers/bank_shard/Dockerfile
+    container_name: q2_agregador_shard_01
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/q2_agregador_shard_01:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: '["q2_shard_transactions_1", "q2_shard_banks_1"]'
+      OUTPUT_QUEUES: q2_results
+      NODE_PREFIX: q2_agregador_shard
+      ID: '1'
+      TOTAL_WORKERS: '6'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q2_agregador_shard_01.txt
+      TOTAL_TX_UPSTREAM: 6
+      TOTAL_BANK_UPSTREAM: 3
+      PREFETCH_COUNT: '1000'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q2_agregador_shard_02:
+    build:
+      context: ./src
+      dockerfile: workers/bank_shard/Dockerfile
+    container_name: q2_agregador_shard_02
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/q2_agregador_shard_02:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: '["q2_shard_transactions_2", "q2_shard_banks_2"]'
+      OUTPUT_QUEUES: q2_results
+      NODE_PREFIX: q2_agregador_shard
+      ID: '2'
+      TOTAL_WORKERS: '6'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q2_agregador_shard_02.txt
+      TOTAL_TX_UPSTREAM: 6
+      TOTAL_BANK_UPSTREAM: 3
+      PREFETCH_COUNT: '1000'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q2_agregador_shard_03:
+    build:
+      context: ./src
+      dockerfile: workers/bank_shard/Dockerfile
+    container_name: q2_agregador_shard_03
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/q2_agregador_shard_03:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: '["q2_shard_transactions_3", "q2_shard_banks_3"]'
+      OUTPUT_QUEUES: q2_results
+      NODE_PREFIX: q2_agregador_shard
+      ID: '3'
+      TOTAL_WORKERS: '6'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q2_agregador_shard_03.txt
+      TOTAL_TX_UPSTREAM: 6
+      TOTAL_BANK_UPSTREAM: 3
+      PREFETCH_COUNT: '1000'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q2_agregador_shard_04:
+    build:
+      context: ./src
+      dockerfile: workers/bank_shard/Dockerfile
+    container_name: q2_agregador_shard_04
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/q2_agregador_shard_04:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: '["q2_shard_transactions_4", "q2_shard_banks_4"]'
+      OUTPUT_QUEUES: q2_results
+      NODE_PREFIX: q2_agregador_shard
+      ID: '4'
+      TOTAL_WORKERS: '6'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q2_agregador_shard_04.txt
+      TOTAL_TX_UPSTREAM: 6
+      TOTAL_BANK_UPSTREAM: 3
+      PREFETCH_COUNT: '1000'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q2_agregador_shard_05:
+    build:
+      context: ./src
+      dockerfile: workers/bank_shard/Dockerfile
+    container_name: q2_agregador_shard_05
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/q2_agregador_shard_05:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: '["q2_shard_transactions_5", "q2_shard_banks_5"]'
+      OUTPUT_QUEUES: q2_results
+      NODE_PREFIX: q2_agregador_shard
+      ID: '5'
+      TOTAL_WORKERS: '6'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q2_agregador_shard_05.txt
+      TOTAL_TX_UPSTREAM: 6
+      TOTAL_BANK_UPSTREAM: 3
+      PREFETCH_COUNT: '1000'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q2_agregador_shard_06:
+    build:
+      context: ./src
+      dockerfile: workers/bank_shard/Dockerfile
+    container_name: q2_agregador_shard_06
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/q2_agregador_shard_06:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: '["q2_shard_transactions_6", "q2_shard_banks_6"]'
+      OUTPUT_QUEUES: q2_results
+      NODE_PREFIX: q2_agregador_shard
+      ID: '6'
+      TOTAL_WORKERS: '6'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q2_agregador_shard_06.txt
+      TOTAL_TX_UPSTREAM: 6
+      TOTAL_BANK_UPSTREAM: 3
+      PREFETCH_COUNT: '1000'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q3_filter_fechas_01:
+    build:
+      context: ./src
+      dockerfile: workers/filtro/Dockerfile
+    container_name: q3_filter_fechas_01
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q3_usd_filtered
+      OUTPUT_QUEUES: '[{"type": "conditional", "condition_field": "Timestamp", "cases": [{"operator": "entre", "value": "2022/09/01,2022/09/05", "routing": {"queue_shard_prefix": "q3_temprano", "total_workers": 3, "hash_field": "Payment Format", "include_client_id": true}}, {"operator": "entre", "value": "2022/09/06,2022/09/14 23:59:59", "routing": {"queue_shard_prefix": "q3_tardio", "total_workers": 3, "hash_field": "Payment Format", "include_client_id": true}}]}]'
+      NODE_PREFIX: q3_filter_fechas
+      ID: '1'
+      TOTAL_WORKERS: '4'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q3_filter_fechas_01.txt
+      CAMPO_FILTRO: Timestamp
+      VALOR_FILTRO: 2022/09/01,2022/09/14 23:59:59
+      OPERADOR_FILTRO: entre
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q3_filter_fechas_02:
+    build:
+      context: ./src
+      dockerfile: workers/filtro/Dockerfile
+    container_name: q3_filter_fechas_02
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q3_usd_filtered
+      OUTPUT_QUEUES: '[{"type": "conditional", "condition_field": "Timestamp", "cases": [{"operator": "entre", "value": "2022/09/01,2022/09/05", "routing": {"queue_shard_prefix": "q3_temprano", "total_workers": 3, "hash_field": "Payment Format", "include_client_id": true}}, {"operator": "entre", "value": "2022/09/06,2022/09/14 23:59:59", "routing": {"queue_shard_prefix": "q3_tardio", "total_workers": 3, "hash_field": "Payment Format", "include_client_id": true}}]}]'
+      NODE_PREFIX: q3_filter_fechas
+      ID: '2'
+      TOTAL_WORKERS: '4'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q3_filter_fechas_02.txt
+      CAMPO_FILTRO: Timestamp
+      VALOR_FILTRO: 2022/09/01,2022/09/14 23:59:59
+      OPERADOR_FILTRO: entre
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q3_filter_fechas_03:
+    build:
+      context: ./src
+      dockerfile: workers/filtro/Dockerfile
+    container_name: q3_filter_fechas_03
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q3_usd_filtered
+      OUTPUT_QUEUES: '[{"type": "conditional", "condition_field": "Timestamp", "cases": [{"operator": "entre", "value": "2022/09/01,2022/09/05", "routing": {"queue_shard_prefix": "q3_temprano", "total_workers": 3, "hash_field": "Payment Format", "include_client_id": true}}, {"operator": "entre", "value": "2022/09/06,2022/09/14 23:59:59", "routing": {"queue_shard_prefix": "q3_tardio", "total_workers": 3, "hash_field": "Payment Format", "include_client_id": true}}]}]'
+      NODE_PREFIX: q3_filter_fechas
+      ID: '3'
+      TOTAL_WORKERS: '4'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q3_filter_fechas_03.txt
+      CAMPO_FILTRO: Timestamp
+      VALOR_FILTRO: 2022/09/01,2022/09/14 23:59:59
+      OPERADOR_FILTRO: entre
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q3_filter_fechas_04:
+    build:
+      context: ./src
+      dockerfile: workers/filtro/Dockerfile
+    container_name: q3_filter_fechas_04
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q3_usd_filtered
+      OUTPUT_QUEUES: '[{"type": "conditional", "condition_field": "Timestamp", "cases": [{"operator": "entre", "value": "2022/09/01,2022/09/05", "routing": {"queue_shard_prefix": "q3_temprano", "total_workers": 3, "hash_field": "Payment Format", "include_client_id": true}}, {"operator": "entre", "value": "2022/09/06,2022/09/14 23:59:59", "routing": {"queue_shard_prefix": "q3_tardio", "total_workers": 3, "hash_field": "Payment Format", "include_client_id": true}}]}]'
+      NODE_PREFIX: q3_filter_fechas
+      ID: '4'
+      TOTAL_WORKERS: '4'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q3_filter_fechas_04.txt
+      CAMPO_FILTRO: Timestamp
+      VALOR_FILTRO: 2022/09/01,2022/09/14 23:59:59
+      OPERADOR_FILTRO: entre
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q3_format_shard_01:
+    build:
+      context: ./src
+      dockerfile: workers/format_shard/Dockerfile
+    container_name: q3_format_shard_01
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/q3_format_shard_01:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: '["q3_temprano_1", "q3_tardio_1"]'
+      OUTPUT_QUEUES: q3_results
+      NODE_PREFIX: q3_format_shard
+      ID: '1'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q3_format_shard_01.txt
+      PREFETCH_COUNT: '1000'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q3_format_shard_02:
+    build:
+      context: ./src
+      dockerfile: workers/format_shard/Dockerfile
+    container_name: q3_format_shard_02
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/q3_format_shard_02:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: '["q3_temprano_2", "q3_tardio_2"]'
+      OUTPUT_QUEUES: q3_results
+      NODE_PREFIX: q3_format_shard
+      ID: '2'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q3_format_shard_02.txt
+      PREFETCH_COUNT: '1000'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q3_format_shard_03:
+    build:
+      context: ./src
+      dockerfile: workers/format_shard/Dockerfile
+    container_name: q3_format_shard_03
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/q3_format_shard_03:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: '["q3_temprano_3", "q3_tardio_3"]'
+      OUTPUT_QUEUES: q3_results
+      NODE_PREFIX: q3_format_shard
+      ID: '3'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q3_format_shard_03.txt
+      PREFETCH_COUNT: '1000'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q4_projection_01:
+    build:
+      context: ./src
+      dockerfile: workers/proyeccion/Dockerfile
+    container_name: q4_projection_01
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q4_pre_projection
+      OUTPUT_QUEUES: q4_projected
+      NODE_PREFIX: q4_projection
+      ID: '1'
+      TOTAL_WORKERS: '2'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q4_projection_01.txt
+      CAMPOS: From Bank,Account,To Bank,Account.1,Timestamp
+      INT_FIELDS: From Bank,To Bank
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q4_projection_02:
+    build:
+      context: ./src
+      dockerfile: workers/proyeccion/Dockerfile
+    container_name: q4_projection_02
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q4_pre_projection
+      OUTPUT_QUEUES: q4_projected
+      NODE_PREFIX: q4_projection
+      ID: '2'
+      TOTAL_WORKERS: '2'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q4_projection_02.txt
+      CAMPOS: From Bank,Account,To Bank,Account.1,Timestamp
+      INT_FIELDS: From Bank,To Bank
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q4_filter_period_01:
+    build:
+      context: ./src
+      dockerfile: workers/filtro/Dockerfile
+    container_name: q4_filter_period_01
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q4_projected
+      OUTPUT_QUEUES: '[{"queue_shard_prefix": "q4_to_sumador", "total_workers": 3, "hash_fields": ["From Bank", "Account"]}, {"queue_shard_prefix": "q4_to_joiner", "total_workers": 3, "hash_fields": ["From Bank", "Account"]}]'
+      NODE_PREFIX: q4_filter_period
+      ID: '1'
+      TOTAL_WORKERS: '2'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q4_filter_period_01.txt
+      CAMPO_FILTRO: Timestamp
+      VALOR_FILTRO: 2022/09/01, 2022/09/05
+      OPERADOR_FILTRO: entre
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q4_filter_period_02:
+    build:
+      context: ./src
+      dockerfile: workers/filtro/Dockerfile
+    container_name: q4_filter_period_02
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q4_projected
+      OUTPUT_QUEUES: '[{"queue_shard_prefix": "q4_to_sumador", "total_workers": 3, "hash_fields": ["From Bank", "Account"]}, {"queue_shard_prefix": "q4_to_joiner", "total_workers": 3, "hash_fields": ["From Bank", "Account"]}]'
+      NODE_PREFIX: q4_filter_period
+      ID: '2'
+      TOTAL_WORKERS: '2'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q4_filter_period_02.txt
+      CAMPO_FILTRO: Timestamp
+      VALOR_FILTRO: 2022/09/01, 2022/09/05
+      OPERADOR_FILTRO: entre
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q4_sumador_01:
+    build:
+      context: ./src
+      dockerfile: workers/contador_distinto/Dockerfile
+    container_name: q4_sumador_01
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/q4_sumador_01:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q4_to_sumador_1
+      OUTPUT_QUEUES: '[{"queue_shard_prefix": "q4_scatter_edges", "total_workers": 3, "hash_fields": ["to_bank", "to_account"]}]'
+      NODE_PREFIX: q4_sumador
+      ID: '1'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q4_sumador_01.txt
+      GROUP_FIELDS: From Bank,Account
+      GROUP_OUTPUT_FIELDS: from_bank,from_account
+      VALUE_FIELDS: To Bank,Account.1
+      VALUE_OUTPUT_FIELDS: to_bank,to_account
+      EXPECTED_COUNT: '5'
+      COMPARISON_OPERATOR: gt
+      EMIT_MODE: explode
+      PREFETCH_COUNT: '1000'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q4_sumador_02:
+    build:
+      context: ./src
+      dockerfile: workers/contador_distinto/Dockerfile
+    container_name: q4_sumador_02
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/q4_sumador_02:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q4_to_sumador_2
+      OUTPUT_QUEUES: '[{"queue_shard_prefix": "q4_scatter_edges", "total_workers": 3, "hash_fields": ["to_bank", "to_account"]}]'
+      NODE_PREFIX: q4_sumador
+      ID: '2'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q4_sumador_02.txt
+      GROUP_FIELDS: From Bank,Account
+      GROUP_OUTPUT_FIELDS: from_bank,from_account
+      VALUE_FIELDS: To Bank,Account.1
+      VALUE_OUTPUT_FIELDS: to_bank,to_account
+      EXPECTED_COUNT: '5'
+      COMPARISON_OPERATOR: gt
+      EMIT_MODE: explode
+      PREFETCH_COUNT: '1000'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q4_sumador_03:
+    build:
+      context: ./src
+      dockerfile: workers/contador_distinto/Dockerfile
+    container_name: q4_sumador_03
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/q4_sumador_03:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q4_to_sumador_3
+      OUTPUT_QUEUES: '[{"queue_shard_prefix": "q4_scatter_edges", "total_workers": 3, "hash_fields": ["to_bank", "to_account"]}]'
+      NODE_PREFIX: q4_sumador
+      ID: '3'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q4_sumador_03.txt
+      GROUP_FIELDS: From Bank,Account
+      GROUP_OUTPUT_FIELDS: from_bank,from_account
+      VALUE_FIELDS: To Bank,Account.1
+      VALUE_OUTPUT_FIELDS: to_bank,to_account
+      EXPECTED_COUNT: '5'
+      COMPARISON_OPERATOR: gt
+      EMIT_MODE: explode
+      PREFETCH_COUNT: '1000'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q4_joiner_01:
+    build:
+      context: ./src
+      dockerfile: workers/joiner_q4/Dockerfile
+    container_name: q4_joiner_01
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/q4_joiner_01:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: '["q4_scatter_edges_1", "q4_to_joiner_1"]'
+      OUTPUT_QUEUES: '[{"queue_shard_prefix": "q4_paths", "total_workers": 3, "hash_fields": ["a_bank", "a_account", "c_bank", "c_account"]}]'
+      NODE_PREFIX: q4_joiner
+      ID: '1'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q4_joiner_01.txt
+      PREFETCH_COUNT: '1000'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q4_joiner_02:
+    build:
+      context: ./src
+      dockerfile: workers/joiner_q4/Dockerfile
+    container_name: q4_joiner_02
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/q4_joiner_02:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: '["q4_scatter_edges_2", "q4_to_joiner_2"]'
+      OUTPUT_QUEUES: '[{"queue_shard_prefix": "q4_paths", "total_workers": 3, "hash_fields": ["a_bank", "a_account", "c_bank", "c_account"]}]'
+      NODE_PREFIX: q4_joiner
+      ID: '2'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q4_joiner_02.txt
+      PREFETCH_COUNT: '1000'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q4_joiner_03:
+    build:
+      context: ./src
+      dockerfile: workers/joiner_q4/Dockerfile
+    container_name: q4_joiner_03
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/q4_joiner_03:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: '["q4_scatter_edges_3", "q4_to_joiner_3"]'
+      OUTPUT_QUEUES: '[{"queue_shard_prefix": "q4_paths", "total_workers": 3, "hash_fields": ["a_bank", "a_account", "c_bank", "c_account"]}]'
+      NODE_PREFIX: q4_joiner
+      ID: '3'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q4_joiner_03.txt
+      PREFETCH_COUNT: '1000'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q4_contador_01:
+    build:
+      context: ./src
+      dockerfile: workers/contador_distinto/Dockerfile
+    container_name: q4_contador_01
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/q4_contador_01:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q4_paths_1
+      OUTPUT_QUEUES: q4_results
+      NODE_PREFIX: q4_contador
+      ID: '1'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q4_contador_01.txt
+      GROUP_FIELDS: a_bank,a_account,c_bank,c_account
+      GROUP_OUTPUT_FIELDS: From Bank,From Account,To Bank,To Account
+      VALUE_FIELDS: b_bank,b_account
+      EXPECTED_COUNT: '5'
+      COMPARISON_OPERATOR: gt
+      EMIT_MODE: aggregate
+      COUNT_OUTPUT_FIELD: Amount Transactions
+      PREFETCH_COUNT: '1000'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q4_contador_02:
+    build:
+      context: ./src
+      dockerfile: workers/contador_distinto/Dockerfile
+    container_name: q4_contador_02
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/q4_contador_02:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q4_paths_2
+      OUTPUT_QUEUES: q4_results
+      NODE_PREFIX: q4_contador
+      ID: '2'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q4_contador_02.txt
+      GROUP_FIELDS: a_bank,a_account,c_bank,c_account
+      GROUP_OUTPUT_FIELDS: From Bank,From Account,To Bank,To Account
+      VALUE_FIELDS: b_bank,b_account
+      EXPECTED_COUNT: '5'
+      COMPARISON_OPERATOR: gt
+      EMIT_MODE: aggregate
+      COUNT_OUTPUT_FIELD: Amount Transactions
+      PREFETCH_COUNT: '1000'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q4_contador_03:
+    build:
+      context: ./src
+      dockerfile: workers/contador_distinto/Dockerfile
+    container_name: q4_contador_03
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/q4_contador_03:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q4_paths_3
+      OUTPUT_QUEUES: q4_results
+      NODE_PREFIX: q4_contador
+      ID: '3'
+      TOTAL_WORKERS: '3'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q4_contador_03.txt
+      GROUP_FIELDS: a_bank,a_account,c_bank,c_account
+      GROUP_OUTPUT_FIELDS: From Bank,From Account,To Bank,To Account
+      VALUE_FIELDS: b_bank,b_account
+      EXPECTED_COUNT: '5'
+      COMPARISON_OPERATOR: gt
+      EMIT_MODE: aggregate
+      COUNT_OUTPUT_FIELD: Amount Transactions
+      PREFETCH_COUNT: '1000'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q5_projection_01:
+    build:
+      context: ./src
+      dockerfile: workers/proyeccion/Dockerfile
+    container_name: q5_projection_01
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q5_raw_data
+      OUTPUT_QUEUES: q5_projected_data
+      NODE_PREFIX: q5_projection
+      ID: '1'
+      TOTAL_WORKERS: '4'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q5_projection_01.txt
+      CAMPOS: Timestamp,Payment Currency,Payment Format,Amount Paid
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q5_projection_02:
+    build:
+      context: ./src
+      dockerfile: workers/proyeccion/Dockerfile
+    container_name: q5_projection_02
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q5_raw_data
+      OUTPUT_QUEUES: q5_projected_data
+      NODE_PREFIX: q5_projection
+      ID: '2'
+      TOTAL_WORKERS: '4'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q5_projection_02.txt
+      CAMPOS: Timestamp,Payment Currency,Payment Format,Amount Paid
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q5_projection_03:
+    build:
+      context: ./src
+      dockerfile: workers/proyeccion/Dockerfile
+    container_name: q5_projection_03
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q5_raw_data
+      OUTPUT_QUEUES: q5_projected_data
+      NODE_PREFIX: q5_projection
+      ID: '3'
+      TOTAL_WORKERS: '4'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q5_projection_03.txt
+      CAMPOS: Timestamp,Payment Currency,Payment Format,Amount Paid
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q5_projection_04:
+    build:
+      context: ./src
+      dockerfile: workers/proyeccion/Dockerfile
+    container_name: q5_projection_04
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q5_raw_data
+      OUTPUT_QUEUES: q5_projected_data
+      NODE_PREFIX: q5_projection
+      ID: '4'
+      TOTAL_WORKERS: '4'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q5_projection_04.txt
+      CAMPOS: Timestamp,Payment Currency,Payment Format,Amount Paid
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q5_filter_period_01:
+    build:
+      context: ./src
+      dockerfile: workers/filtro/Dockerfile
+    container_name: q5_filter_period_01
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q5_projected_data
+      OUTPUT_QUEUES: q5_period_to_format
+      NODE_PREFIX: q5_filter_period
+      ID: '1'
+      TOTAL_WORKERS: '4'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q5_filter_period_01.txt
+      CAMPO_FILTRO: Timestamp
+      VALOR_FILTRO: 2022/09/01, 2022/09/05
+      OPERADOR_FILTRO: entre
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q5_filter_period_02:
+    build:
+      context: ./src
+      dockerfile: workers/filtro/Dockerfile
+    container_name: q5_filter_period_02
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q5_projected_data
+      OUTPUT_QUEUES: q5_period_to_format
+      NODE_PREFIX: q5_filter_period
+      ID: '2'
+      TOTAL_WORKERS: '4'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q5_filter_period_02.txt
+      CAMPO_FILTRO: Timestamp
+      VALOR_FILTRO: 2022/09/01, 2022/09/05
+      OPERADOR_FILTRO: entre
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q5_filter_period_03:
+    build:
+      context: ./src
+      dockerfile: workers/filtro/Dockerfile
+    container_name: q5_filter_period_03
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q5_projected_data
+      OUTPUT_QUEUES: q5_period_to_format
+      NODE_PREFIX: q5_filter_period
+      ID: '3'
+      TOTAL_WORKERS: '4'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q5_filter_period_03.txt
+      CAMPO_FILTRO: Timestamp
+      VALOR_FILTRO: 2022/09/01, 2022/09/05
+      OPERADOR_FILTRO: entre
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q5_filter_period_04:
+    build:
+      context: ./src
+      dockerfile: workers/filtro/Dockerfile
+    container_name: q5_filter_period_04
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q5_projected_data
+      OUTPUT_QUEUES: q5_period_to_format
+      NODE_PREFIX: q5_filter_period
+      ID: '4'
+      TOTAL_WORKERS: '4'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q5_filter_period_04.txt
+      CAMPO_FILTRO: Timestamp
+      VALOR_FILTRO: 2022/09/01, 2022/09/05
+      OPERADOR_FILTRO: entre
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q5_filter_format_01:
+    build:
+      context: ./src
+      dockerfile: workers/filtro/Dockerfile
+    container_name: q5_filter_format_01
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q5_period_to_format
+      OUTPUT_QUEUES: q5_format_to_convert
+      NODE_PREFIX: q5_filter_format
+      ID: '1'
+      TOTAL_WORKERS: '2'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q5_filter_format_01.txt
+      CAMPO_FILTRO: Payment Format
+      VALOR_FILTRO: Wire, ACH
+      OPERADOR_FILTRO: en
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q5_filter_format_02:
+    build:
+      context: ./src
+      dockerfile: workers/filtro/Dockerfile
+    container_name: q5_filter_format_02
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q5_period_to_format
+      OUTPUT_QUEUES: q5_format_to_convert
+      NODE_PREFIX: q5_filter_format
+      ID: '2'
+      TOTAL_WORKERS: '2'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q5_filter_format_02.txt
+      CAMPO_FILTRO: Payment Format
+      VALOR_FILTRO: Wire, ACH
+      OPERADOR_FILTRO: en
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q5_converter_01:
+    build:
+      context: ./src
+      dockerfile: workers/convertidor/Dockerfile
+    container_name: q5_converter_01
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q5_format_to_convert
+      OUTPUT_QUEUES: q5_filtered
+      NODE_PREFIX: q5_converter
+      ID: '1'
+      TOTAL_WORKERS: '2'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q5_converter_01.txt
+      FECHA_INICIO: '2022-09-01'
+      FECHA_FIN: '2022-09-05'
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q5_converter_02:
+    build:
+      context: ./src
+      dockerfile: workers/convertidor/Dockerfile
+    container_name: q5_converter_02
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q5_format_to_convert
+      OUTPUT_QUEUES: q5_filtered
+      NODE_PREFIX: q5_converter
+      ID: '2'
+      TOTAL_WORKERS: '2'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q5_converter_02.txt
+      FECHA_INICIO: '2022-09-01'
+      FECHA_FIN: '2022-09-05'
+      PREFETCH_COUNT: '50'
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  q5_counter_01:
+    build:
+      context: ./src
+      dockerfile: workers/contador/Dockerfile
+    container_name: q5_counter_01
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      PYTHONMALLOC: malloc
+      INPUT_QUEUES: q5_filtered
+      OUTPUT_QUEUES: q5_results
+      NODE_PREFIX: q5_counter
+      ID: '1'
+      TOTAL_WORKERS: '1'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/q5_counter_01.txt
+      PREFETCH_COUNT: '50'
+      CRASH_AFTER_PERSIST: ${CRASH_AFTER_PERSIST:-false}
+      CRASH_BEFORE_FINISHED_CONFIRMATION: ${CRASH_BEFORE_FINISHED_CONFIRMATION:-false}
+      CRASH_PRE_BARRERA: ${CRASH_PRE_BARRERA:-false}
+      CRASH_AFTER_FLUSH: ${CRASH_AFTER_FLUSH:-false}
+  watchdog_1:
+    build:
+      context: ./src
+      dockerfile: watchdog/Dockerfile
+    container_name: watchdog_1
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/watchdog_1:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      WATCHDOG_STAGES: '["gateway", "shared_filter_usd", "q1_projection", "q1_minor_than_50", "q2_bank_projection", "q2_projection", "q2_agregador_shard", "q3_filter_fechas", "q3_format_shard", "q4_projection", "q4_filter_period", "q4_sumador", "q4_joiner", "q4_contador", "q5_projection", "q5_filter_period", "q5_filter_format", "q5_converter", "q5_counter"]'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      MISSED_HEARTBEATS_THRESHOLD: '6'
+      CHECK_INTERVAL_SECONDS: '5'
+      CAIDAS_QUEUE: caidas
+      WATCHDOG_ID: '1'
+      NUM_WATCHDOGS: '3'
+      LEADER_HEARTBEAT_INTERVAL: '5'
+      LEADER_TIMEOUT_SECONDS: '20'
+      ELECTION_STARTUP_DELAY_MAX: '3'
+      CHECK_LEADER_INTERVAL: '5'
+      ELECTION_TIMEOUT: '30'
+      SUSPECTED_DEAD_TTL: '60'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/watchdog_1.txt
+      CRASH_LEADER_MID_ELECTION: ${CRASH_LEADER_MID_ELECTION:-false}
+      CRASH_WD_POST_TOPOLOGY_SAVE: ${CRASH_WD_POST_TOPOLOGY_SAVE:-false}
+      CRASH_WD_POST_TOPOLOGY_LOAD: ${CRASH_WD_POST_TOPOLOGY_LOAD:-false}
+      CRASH_WD_PRE_PUBLISH_CAIDA: ${CRASH_WD_PRE_PUBLISH_CAIDA:-false}
+      CRASH_WD_POST_LEADER_DECLARE: ${CRASH_WD_POST_LEADER_DECLARE:-false}
+  watchdog_2:
+    build:
+      context: ./src
+      dockerfile: watchdog/Dockerfile
+    container_name: watchdog_2
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/watchdog_2:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      WATCHDOG_STAGES: '["gateway", "shared_filter_usd", "q1_projection", "q1_minor_than_50", "q2_bank_projection", "q2_projection", "q2_agregador_shard", "q3_filter_fechas", "q3_format_shard", "q4_projection", "q4_filter_period", "q4_sumador", "q4_joiner", "q4_contador", "q5_projection", "q5_filter_period", "q5_filter_format", "q5_converter", "q5_counter"]'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      MISSED_HEARTBEATS_THRESHOLD: '6'
+      CHECK_INTERVAL_SECONDS: '5'
+      CAIDAS_QUEUE: caidas
+      WATCHDOG_ID: '2'
+      NUM_WATCHDOGS: '3'
+      LEADER_HEARTBEAT_INTERVAL: '5'
+      LEADER_TIMEOUT_SECONDS: '20'
+      ELECTION_STARTUP_DELAY_MAX: '3'
+      CHECK_LEADER_INTERVAL: '5'
+      ELECTION_TIMEOUT: '30'
+      SUSPECTED_DEAD_TTL: '60'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/watchdog_2.txt
+      CRASH_LEADER_MID_ELECTION: ${CRASH_LEADER_MID_ELECTION:-false}
+      CRASH_WD_POST_TOPOLOGY_SAVE: ${CRASH_WD_POST_TOPOLOGY_SAVE:-false}
+      CRASH_WD_POST_TOPOLOGY_LOAD: ${CRASH_WD_POST_TOPOLOGY_LOAD:-false}
+      CRASH_WD_PRE_PUBLISH_CAIDA: ${CRASH_WD_PRE_PUBLISH_CAIDA:-false}
+      CRASH_WD_POST_LEADER_DECLARE: ${CRASH_WD_POST_LEADER_DECLARE:-false}
+  watchdog_3:
+    build:
+      context: ./src
+      dockerfile: watchdog/Dockerfile
+    container_name: watchdog_3
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    volumes:
+    - ./logs:/app/logs
+    - ./volume/watchdog_3:/app/volumen
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      WATCHDOG_STAGES: '["gateway", "shared_filter_usd", "q1_projection", "q1_minor_than_50", "q2_bank_projection", "q2_projection", "q2_agregador_shard", "q3_filter_fechas", "q3_format_shard", "q4_projection", "q4_filter_period", "q4_sumador", "q4_joiner", "q4_contador", "q5_projection", "q5_filter_period", "q5_filter_format", "q5_converter", "q5_counter"]'
+      HEARTBEAT_INTERVAL_SECONDS: '5'
+      MISSED_HEARTBEATS_THRESHOLD: '6'
+      CHECK_INTERVAL_SECONDS: '5'
+      CAIDAS_QUEUE: caidas
+      WATCHDOG_ID: '3'
+      NUM_WATCHDOGS: '3'
+      LEADER_HEARTBEAT_INTERVAL: '5'
+      LEADER_TIMEOUT_SECONDS: '20'
+      ELECTION_STARTUP_DELAY_MAX: '3'
+      CHECK_LEADER_INTERVAL: '5'
+      ELECTION_TIMEOUT: '30'
+      SUSPECTED_DEAD_TTL: '60'
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/watchdog_3.txt
+      CRASH_LEADER_MID_ELECTION: ${CRASH_LEADER_MID_ELECTION:-false}
+      CRASH_WD_POST_TOPOLOGY_SAVE: ${CRASH_WD_POST_TOPOLOGY_SAVE:-false}
+      CRASH_WD_POST_TOPOLOGY_LOAD: ${CRASH_WD_POST_TOPOLOGY_LOAD:-false}
+      CRASH_WD_PRE_PUBLISH_CAIDA: ${CRASH_WD_PRE_PUBLISH_CAIDA:-false}
+      CRASH_WD_POST_LEADER_DECLARE: ${CRASH_WD_POST_LEADER_DECLARE:-false}
+  actuador_1:
+    build:
+      context: ./src
+      dockerfile: watchdog/DockerfileActuador
+    container_name: actuador_1
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      CAIDAS_QUEUE: caidas
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/actuador_1.txt
+  actuador_2:
+    build:
+      context: ./src
+      dockerfile: watchdog/DockerfileActuador
+    container_name: actuador_2
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    - ./logs:/app/logs
+    environment:
+      MOM_HOST: rabbitmq
+      MOM_PORT: '5672'
+      MOM_USER: distributed
+      MOM_PASSWORD: distributed
+      MOM_VHOST: /
+      CAIDAS_QUEUE: caidas
+      LOG_LEVEL: INFO
+      LOG_FILE: /app/logs/actuador_2.txt

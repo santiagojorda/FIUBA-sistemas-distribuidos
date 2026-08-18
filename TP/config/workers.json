@@ -1,0 +1,38 @@
+{
+  "CANT_FILTERS_USD": 3,
+
+  "CANT_Q1_PROJECTION": 2,
+  "CANT_Q1_FILTER": 3,
+
+  "CANT_Q2_BANK_PROJECTION": 3,
+  "CANT_Q2_PROJECTION": 6,
+  "CANT_Q2_AGREGADOR": 6,
+
+  "CANT_Q3_FILTER_FECHAS": 4,
+  "CANT_Q3_FORMAT_SHARD": 3,
+
+  "CANT_Q4_PROJECTION": 2,
+  "CANT_Q4_FILTER": 2,
+  "CANT_Q4_SHARDS": 3,
+
+  "CANT_Q5_PROJECTION": 4,
+  "CANT_Q5_FILTER_PERIOD": 4,
+  "CANT_Q5_FILTER_FORMAT": 2,
+  "CANT_Q5_CONVERTER": 2,
+  "CANT_Q5_COUNTER": 1,
+
+  "shared_workers": [
+    {
+      "type": "filtro",
+      "prefix": "shared_filter_usd",
+      "replicas": "$CANT_FILTERS_USD",
+      "input_queue": "raw_data",
+      "output_queue": ["q1_pre_projection", "q2_pre_projection", "q3_usd_filtered", "q4_pre_projection"],
+      "extra_env": {
+        "CAMPO_FILTRO": "Payment Currency",
+        "VALOR_FILTRO": "US Dollar",
+        "OPERADOR_FILTRO": "igual"
+      }
+    }
+  ]
+}

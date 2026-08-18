@@ -1,0 +1,70 @@
+{
+  "gateway_queue": "raw_data",
+  "workers": [
+    {
+      "type": "proyeccion",
+      "prefix": "q4_projection",
+      "replicas": "$CANT_Q4_PROJECTION",
+      "input_queue": "q4_pre_projection",
+      "output_queue": "q4_projected",
+      "extra_env": {
+        "CAMPOS": "From Bank,Account,To Bank,Account.1,Timestamp",
+        "INT_FIELDS": "From Bank,To Bank"
+      }
+    },
+    {
+      "type": "filtro",
+      "prefix": "q4_filter_period",
+      "replicas": "$CANT_Q4_FILTER",
+      "input_queue": "q4_projected",
+      "output_queue": [
+        {"queue_shard_prefix": "q4_to_sumador", "total_workers": "$CANT_Q4_SHARDS", "hash_fields": ["From Bank", "Account"]},
+        {"queue_shard_prefix": "q4_to_joiner", "total_workers": "$CANT_Q4_SHARDS", "hash_fields": ["From Bank", "Account"]}
+      ],
+      "extra_env": {
+        "CAMPO_FILTRO": "Timestamp",
+        "VALOR_FILTRO": "2022/09/01, 2022/09/05",
+        "OPERADOR_FILTRO": "entre"
+      }
+    },
+    {
+      "type": "contador_distinto",
+      "prefix": "q4_sumador",
+      "replicas": "$CANT_Q4_SHARDS",
+      "input_queue": "q4_to_sumador_{id}",
+      "output_queue": [{"queue_shard_prefix": "q4_scatter_edges", "total_workers": "$CANT_Q4_SHARDS", "hash_fields": ["to_bank", "to_account"]}],
+      "extra_env": {
+        "GROUP_FIELDS": "From Bank,Account",
+        "GROUP_OUTPUT_FIELDS": "from_bank,from_account",
+        "VALUE_FIELDS": "To Bank,Account.1",
+        "VALUE_OUTPUT_FIELDS": "to_bank,to_account",
+        "EXPECTED_COUNT": "5",
+        "COMPARISON_OPERATOR": "gt",
+        "EMIT_MODE": "explode"
+      }
+    },
+    {
+      "type": "joiner_q4",
+      "prefix": "q4_joiner",
+      "replicas": "$CANT_Q4_SHARDS",
+      "input_queue": ["q4_scatter_edges_{id}", "q4_to_joiner_{id}"],
+      "output_queue": [{"queue_shard_prefix": "q4_paths", "total_workers": "$CANT_Q4_SHARDS", "hash_fields": ["a_bank", "a_account", "c_bank", "c_account"]}]
+    },
+    {
+      "type": "contador_distinto",
+      "prefix": "q4_contador",
+      "replicas": "$CANT_Q4_SHARDS",
+      "input_queue": "q4_paths_{id}",
+      "output_queue": "q4_results",
+      "extra_env": {
+        "GROUP_FIELDS": "a_bank,a_account,c_bank,c_account",
+        "GROUP_OUTPUT_FIELDS": "From Bank,From Account,To Bank,To Account",
+        "VALUE_FIELDS": "b_bank,b_account",
+        "EXPECTED_COUNT": "5",
+        "COMPARISON_OPERATOR": "gt",
+        "EMIT_MODE": "aggregate",
+        "COUNT_OUTPUT_FIELD": "Amount Transactions"
+      }
+    }
+  ]
+}
