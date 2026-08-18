@@ -14,10 +14,11 @@ Este repositorio contiene el material de estudio, presentaciones, flashcards y e
 
 El contenido está organizado de la siguiente manera:
 
-* 📁 **[Presentaciones/](file:///c:/Users/jorda/Documentos/PROYECTOS/FIUBA/Distribuidos-1C2026/Presentaciones)**: Diapositivas oficiales de la cátedra para cada clase, abarcando temas desde Introducción y Multitasking hasta Tolerancia a Fallos, Algoritmos de Consenso y Tiempo Real. También incluye resúmenes de estudio.
-* 📁 **[flashcards/](file:///c:/Users/jorda/Documentos/PROYECTOS/FIUBA/Distribuidos-1C2026/flashcards)**: Preguntas y respuestas rápidas tipo tarjetas de memoria en formato Markdown, ideales para repasar conceptos clave clase a clase.
+* 📁 **[DIAPOSITIVAS/](file:///c:/Users/jorda/Documentos/PROYECTOS/FIUBA/Distribuidos-1C2026/DIAPOSITIVAS)**: Diapositivas oficiales de la cátedra para cada clase, abarcando temas desde Introducción y Multitasking hasta Tolerancia a Fallos, Algoritmos de Consenso y Tiempo Real.
+* 📁 **[RESUMENES/](file:///c:/Users/jorda/Documentos/PROYECTOS/FIUBA/Distribuidos-1C2026/RESUMENES)**: Resúmenes de estudio detallados clase a clase en formato Markdown.
+* 📁 **[PREGUNTAS FINAL/](file:///c:/Users/jorda/Documentos/PROYECTOS/FIUBA/Distribuidos-1C2026/PREGUNTAS%20FINAL)**: Preguntas y respuestas rápidas tipo tarjetas de memoria (flashcards) en formato Markdown, ideales para repasar conceptos clave clase a clase.
 * 📁 **[INTEGRADORES/](file:///c:/Users/jorda/Documentos/PROYECTOS/FIUBA/Distribuidos-1C2026/INTEGRADORES)**: Enunciados de exámenes integradores de fechas anteriores (PDFs e imágenes) junto con un compilado de exámenes resueltos (`RESUELTOS.pdf`).
-* 📄 **[INTEGRADOR.pdf](file:///c:/Users/jorda/Documentos/PROYECTOS/FIUBA/Distribuidos-1C2026/INTEGRADOR.pdf)**: Enunciado/documento de examen integrador.
+* 📄 **[RESUMEN INTEGRADOR.pdf](file:///c:/Users/jorda/Documentos/PROYECTOS/FIUBA/Distribuidos-1C2026/RESUMEN%20INTEGRADOR.pdf)**: Resumen y compilación de temas para el examen integrador.
 
 ---
 
