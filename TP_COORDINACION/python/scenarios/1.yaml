@@ -1,0 +1,98 @@
+services:
+  aggregation_0:
+    build:
+      context: ./src/
+      dockerfile: aggregation/Dockerfile
+    container_name: aggregation_0
+    depends_on:
+    - join
+    environment:
+    - AGGREGATION_AMOUNT=1
+    - AGGREGATION_PREFIX=aggregation
+    - ID=0
+    - MOM_HOST=rabbitmq
+    - OUTPUT_QUEUE=join_queue
+    - PYTHONUNBUFFERED=1
+    - SUM_AMOUNT=1
+    - SUM_PREFIX=sum
+    - TOP_SIZE=3
+  client_0:
+    build:
+      context: ./src/
+      dockerfile: client/Dockerfile
+    container_name: client_0
+    depends_on:
+    - sum_0
+    environment:
+    - INPUT_FILE=/datasets/input_0.csv
+    - OUTPUT_FILE=/output/output_0.csv
+    - PYTHONUNBUFFERED=1
+    - SERVER_HOST=gateway
+    - SERVER_PORT=5678
+    volumes:
+    - ./datasets:/datasets
+    - ./output:/output
+  gateway:
+    build:
+      context: ./src/
+      dockerfile: gateway/Dockerfile
+    container_name: gateway
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+    - INPUT_QUEUE=results_queue
+    - MOM_HOST=rabbitmq
+    - OUTPUT_QUEUE=input_queue
+    - PYTHONUNBUFFERED=1
+    - SERVER_HOST=gateway
+    - SERVER_PORT=5678
+  join:
+    build:
+      context: ./src/
+      dockerfile: join/Dockerfile
+    container_name: join
+    depends_on:
+    - gateway
+    environment:
+    - AGGREGATION_AMOUNT=1
+    - AGGREGATION_PREFIX=aggregation
+    - INPUT_QUEUE=join_queue
+    - MOM_HOST=rabbitmq
+    - OUTPUT_QUEUE=results_queue
+    - PYTHONUNBUFFERED=1
+    - SUM_AMOUNT=1
+    - SUM_PREFIX=sum
+    - TOP_SIZE=3
+  rabbitmq:
+    build:
+      context: ./src/rabbitmq
+      dockerfile: Dockerfile
+    container_name: rabbitmq
+    environment:
+    - RABBITMQ_LOG_LEVELS=error
+    healthcheck:
+      interval: 5s
+      retries: 10
+      start_period: 50s
+      test: rabbitmq-diagnostics check_port_connectivity
+      timeout: 3s
+    ports:
+    - 5672:5672
+    - 15672:15672
+  sum_0:
+    build:
+      context: ./src/
+      dockerfile: sum/Dockerfile
+    container_name: sum_0
+    depends_on:
+    - aggregation_0
+    environment:
+    - AGGREGATION_AMOUNT=1
+    - AGGREGATION_PREFIX=aggregation
+    - ID=0
+    - INPUT_QUEUE=input_queue
+    - MOM_HOST=rabbitmq
+    - PYTHONUNBUFFERED=1
+    - SUM_AMOUNT=1
+    - SUM_PREFIX=sum

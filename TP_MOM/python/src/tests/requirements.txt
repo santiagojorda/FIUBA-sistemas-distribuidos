@@ -1,0 +1,4 @@
+pika
+pytest
+pytest-timeout
+requests

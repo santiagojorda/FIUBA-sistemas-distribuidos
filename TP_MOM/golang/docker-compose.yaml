@@ -1,0 +1,30 @@
+services:
+  rabbitmq:
+    container_name: rabbitmq-go
+    build:
+      context: ./rabbitmq
+      dockerfile: Dockerfile
+    ports:
+      - 5672:5672
+      - 15672:15672
+    healthcheck:
+      test: rabbitmq-diagnostics check_port_connectivity
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 50s
+    environment:
+      - RABBITMQ_LOG_LEVELS=error
+
+  go-tests:
+    container_name: go_tests
+    build:
+      context: .
+      dockerfile: tests/Dockerfile
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      API_PORT: 15672
+    depends_on:
+      rabbitmq:
+        condition: service_healthy

@@ -19,9 +19,10 @@ El contenido está organizado de la siguiente manera:
 * 📁 **[PREGUNTAS FINAL/](file:///c:/Users/jorda/Documentos/PROYECTOS/FIUBA/Distribuidos-1C2026/PREGUNTAS%20FINAL)**: Preguntas y respuestas rápidas tipo tarjetas de memoria (flashcards) en formato Markdown, ideales para repasar conceptos clave clase a clase.
 * 📁 **[INTEGRADORES/](file:///c:/Users/jorda/Documentos/PROYECTOS/FIUBA/Distribuidos-1C2026/INTEGRADORES)**: Enunciados de exámenes integradores de fechas anteriores (PDFs e imágenes) junto con un compilado de exámenes resueltos (`RESUELTOS.pdf`).
 * 📄 **[RESUMEN INTEGRADOR.pdf](file:///c:/Users/jorda/Documentos/PROYECTOS/FIUBA/Distribuidos-1C2026/RESUMEN%20INTEGRADOR.pdf)**: Resumen y compilación de temas para el examen integrador.
-* 📁 **[TP/](file:///c:/Users/jorda/Documentos/PROYECTOS/FIUBA/Distribuidos-1C2026/TP)**: Código, scripts, configuración e informe del Trabajo Práctico 1.
-
-
+* 📁 **[TP0/](file:///c:/Users/jorda/Documentos/PROYECTOS/FIUBA/Distribuidos-1C2026/TP0)**: Trabajo Práctico 0 (Docker + Comunicaciones + Concurrencia).
+* 📁 **[TP/](file:///c:/Users/jorda/Documentos/PROYECTOS/FIUBA/Distribuidos-1C2026/TP)**: Código, scripts, configuración e informe del Trabajo Práctico 1 (Sistema de consultas a gran escala).
+* 📁 **[TP_MOM/](file:///c:/Users/jorda/Documentos/PROYECTOS/FIUBA/Distribuidos-1C2026/TP_MOM)**: Trabajo Práctico de Middlewares Orientados a Mensajes (RabbitMQ).
+* 📁 **[TP_COORDINACION/](file:///c:/Users/jorda/Documentos/PROYECTOS/FIUBA/Distribuidos-1C2026/TP_COORDINACION)**: Trabajo Práctico de Coordinación.
 ---
 
 ## 📖 Temario de las Clases
